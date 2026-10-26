@@ -13,14 +13,6 @@ public class ShutdownExecutors {
     public static final Logger LOGGER = LogManager.getLogger("Leaf");
 
     public static void shutdown(MinecraftServer server) {
-        if (server.mobSpawnExecutor != null && server.mobSpawnExecutor.thread.isAlive()) {
-            LOGGER.info("Waiting for mob spawning thread to shutdown...");
-            try {
-                server.mobSpawnExecutor.join(3000L);
-            } catch (InterruptedException ignored) {
-            }
-        }
-
         if (AsyncPlayerDataSaving.IO_POOL != null) {
             LOGGER.info("Waiting for player I/O executor to shutdown...");
             AsyncPlayerDataSaving.IO_POOL.shutdown();

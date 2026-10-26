@@ -1,0 +1,325 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 00:38:11 +0200
+Subject: [PATCH] Remove natural mob spawning and locator bar waypoints
+
+
+diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
+index 0033300feb485f08ab6dd5cd910426dceec35ae8..3622fb9b77988c104ed0763df1548c0abe17b3ad 100644
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -310,7 +310,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public static final long SERVER_INIT = System.nanoTime(); // Paper - Lag compensation
+     public boolean lagging = false; // Purpur - Lagging threshold
+     protected boolean upnp = false; // Purpur - UPnP Port Forwarding
+-    public gg.pufferfish.pufferfish.util.AsyncExecutor mobSpawnExecutor = new gg.pufferfish.pufferfish.util.AsyncExecutor("Leaf Async Mob Spawn Thread"); // Pufferfish - optimize mob spawning // Leaf - Fix Pufferfish and Purpur patches - Unify thread name
+     public java.util.concurrent.Semaphore serverLevelTickingSemaphore = null; // Leaf - SparklyPaper - parallel world ticking
+     // Paper start - improve tick loop
+     public final ca.spottedleaf.moonrise.common.time.TickData tickTimes1s  = new ca.spottedleaf.moonrise.common.time.TickData(java.util.concurrent.TimeUnit.SECONDS.toNanos(1L));
+@@ -3052,16 +3051,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 : ClientboundGameEventPacket.IMMEDIATE_RESPAWN;
+             ClientboundGameEventPacket clientboundGameEventPacket = new ClientboundGameEventPacket(type, (Boolean)value ? 1.0F : 0.0F);
+             serverLevel.players().forEach(serverPlayer1 -> serverPlayer1.connection.send(clientboundGameEventPacket)); // Paper - per-world game rules
+-        } else if (rule == GameRules.LOCATOR_BAR) {
+-            // this.getAllLevels().forEach(serverLevel -> { // Paper - per-world game rules
+-                ServerWaypointManager waypointManager = serverLevel.getWaypointManager();
+-                waypointManager.locatorBarEnabled = (Boolean) value; // Paper - optimize ServerWaypointManager with locator bar disabled
+-                if ((Boolean)value) {
+-                    serverLevel.players().forEach(waypointManager::updatePlayer);
+-                } else {
+-                    waypointManager.breakAllConnections();
+-                }
+-            // }); // Paper - per-world game rules
+         } else if (rule == GameRules.SPAWN_MONSTERS) {
+             serverLevel.setSpawnSettings(serverLevel.isSpawningMonsters()); // Paper - per-world game rules
+         }
+diff --git a/net/minecraft/server/dedicated/DedicatedServer.java b/net/minecraft/server/dedicated/DedicatedServer.java
+index 0e77c717d3481aae5d591a08eed1eb5f1439cdbf..9cd4315b8f8eee5ec1fe6b3127b170cf2fc4e4cb 100644
+--- a/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -453,7 +453,6 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+ 
+             org.purpurmc.purpur.task.BossBarTask.startAll(); // Purpur - Implement TPSBar
+             if (org.purpurmc.purpur.PurpurConfig.beeCountPayload) org.purpurmc.purpur.task.BeehiveTask.instance().register(); // Purpur - Give bee counts in beehives to Purpur clients
+-            if (org.dreeam.leaf.config.modules.async.AsyncMobSpawning.enabled) mobSpawnExecutor.start(); // Pufferfish
+ 
+             this.notificationManager().serverStarted();
+             return true;
+diff --git a/net/minecraft/server/level/ServerChunkCache.java b/net/minecraft/server/level/ServerChunkCache.java
+index cc1d86567653142f3466514cdc0cb1b613b88dc3..30b0b36399df8a5408d204c33bd960786fca34a5 100644
+--- a/net/minecraft/server/level/ServerChunkCache.java
++++ b/net/minecraft/server/level/ServerChunkCache.java
+@@ -72,10 +72,8 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+     private final long[] lastChunkPos = new long[4];
+     private final @Nullable ChunkStatus[] lastChunkStatus = new ChunkStatus[4];
+     private final @Nullable ChunkAccess[] lastChunk = new ChunkAccess[4];
+-    private final List<LevelChunk> spawningChunks = new ObjectArrayList<>();
+     private final Set<ChunkHolder> chunkHoldersToBroadcast = new ReferenceOpenHashSet<>();
+     @VisibleForDebug
+-    private volatile NaturalSpawner.@Nullable SpawnState lastSpawnState; // Leaf - optimize mob spawning
+     // Paper start
+     public final ca.spottedleaf.concurrentutil.map.ConcurrentLong2ReferenceChainedHashTable<net.minecraft.world.level.chunk.LevelChunk> fullChunks = new ca.spottedleaf.concurrentutil.map.ConcurrentLong2ReferenceChainedHashTable<>();
+     public final org.dreeam.leaf.world.ChunkCache<LevelChunk> fullChunksNonSync; // Leaf - thread unsafe chunk map
+@@ -167,7 +165,6 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+     }
+     // Paper end - rewrite chunk system
+     // Paper start - chunk tick iteration optimisations
+-    private final net.minecraft.world.level.levelgen.BitRandomSource shuffleRandom = org.dreeam.leaf.config.modules.opt.FastRNG.enabled ? new org.dreeam.leaf.util.math.random.FasterRandomSource(0L) : new ca.spottedleaf.moonrise.common.util.SimpleThreadUnsafeRandom(0L); // Leaf - Faster random generator
+     private void iterateTickingChunksFaster() {
+         final ServerLevel world = this.level;
+         final int randomTickSpeed = world.getGameRules().get(GameRules.RANDOM_TICK_SPEED);
+@@ -196,8 +193,6 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+     }
+     // Paper end - chunk tick iteration optimisations
+ 
+-    public boolean firstRunSpawnCounts = true; // Pufferfish
+-    public final java.util.concurrent.atomic.AtomicBoolean _pufferfish_spawnCountsReady = new java.util.concurrent.atomic.AtomicBoolean(false); // Pufferfish - optimize countmobs
+ 
+     public ServerChunkCache(
+         ServerLevel level,
+@@ -537,51 +532,8 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+             profilerFiller.pop();
+         }
+ 
+-        // Pufferfish start - optimize mob spawning
+-        // Leaf start - optimize mob spawning
+-        if (org.dreeam.leaf.config.modules.async.AsyncMobSpawning.enabled && this.level.tickRateManager().runsNormally()) {
+-            // updatePerPlayerMobCount();
+-            // Leaf end - optimize mob spawning
+-            if (firstRunSpawnCounts) {
+-                firstRunSpawnCounts = false;
+-                _pufferfish_spawnCountsReady.set(true);
+-            }
+-            // Leaf start - optimize mob spawning
+-            if (_pufferfish_spawnCountsReady.getAndSet(false) && level.paperConfig().entities.spawning.perPlayerMobSpawns) {
+-                final int mapped = distanceManager.getNaturalSpawnChunkCount();
+-                final Iterable<Entity> entities = this.level.getAllEntities();
+-                level.getServer().mobSpawnExecutor.submit(() -> {
+-                    // This ensures the caps are properly enforced by using the correct calculator
+-                    lastSpawnState = NaturalSpawner.createStateAsync( // Leaf - optimize mob spawning
+-                        mapped,
+-                        entities,
+-                        this.level
+-                    );
+-                    // Leaf end - optimize mob spawning
+-                    _pufferfish_spawnCountsReady.set(true);
+-                });
+-            }
+-        }
+-        // Pufferfish end
+     }
+ 
+-    // Leaf start - optimize mob spawning
+-    private void updatePerPlayerMobCount() {
+-        for (ServerPlayer player : this.level.players) {
+-            // Paper start - per player mob spawning backoff
+-            for (int ii = 0; ii < ServerPlayer.MOBCATEGORY_TOTAL_ENUMS; ii++) {
+-                player.mobCounts[ii] = 0;
+-
+-                int newBackoff = player.mobBackoffCounts[ii] - 1; // TODO make configurable bleed // TODO use nonlinear algorithm?
+-                if (newBackoff < 0) {
+-                    newBackoff = 0;
+-                }
+-                player.mobBackoffCounts[ii] = newBackoff;
+-            }
+-            // Paper end - per player mob spawning backoff
+-        }
+-    }
+-    // Leaf end - optimize mob spawning
+ 
+     private void broadcastChangedChunks(ProfilerFiller profiler) {
+         profiler.push("broadcast");
+@@ -598,125 +550,15 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+     }
+ 
+     private void tickChunks(ProfilerFiller profiler, long timeInhabited) {
+-        profiler.push("naturalSpawnCount");
+-        int naturalSpawnChunkCount = this.distanceManager.getNaturalSpawnChunkCount();
+-        // Paper start - Optional per player mob spawns
+-        NaturalSpawner.SpawnState spawnState;
+-        if ((this.spawnFriendlies || this.spawnEnemies) && this.level.paperConfig().entities.spawning.perPlayerMobSpawns) { // don't count mobs when animals and monsters are disabled
+-            if (!org.dreeam.leaf.config.modules.async.AsyncMobSpawning.enabled) { // Pufferfish - moved down when async processing
+-            // re-set mob counts
+-            updatePerPlayerMobCount(); // Leaf - optimize mob spawning
+-            lastSpawnState = NaturalSpawner.createState(naturalSpawnChunkCount, this.level.getAllEntities(), this::getFullChunk, null, true); // Pufferfish - async mob spawning
+-            } // Pufferfish - (endif) moved down when async processing
+-        } else {
+-            // Pufferfish start - async mob spawning
+-            lastSpawnState = NaturalSpawner.createState(naturalSpawnChunkCount, this.level.getAllEntities(), this::getFullChunk, !this.level.paperConfig().entities.spawning.perPlayerMobSpawns ? new LocalMobCapCalculator(this.chunkMap) : null, false);
+-            _pufferfish_spawnCountsReady.set(true);
+-            // Pufferfish end
+-        }
+-        // Paper end - Optional per player mob spawns
+-        //this.lastSpawnState = spawnState; // Pufferfish - this is managed asynchronously
+-        boolean flag = this.level.getGameRules().get(GameRules.SPAWN_MOBS) && !this.level.players().isEmpty(); // CraftBukkit
+-        int i = this.level.getGameRules().get(GameRules.RANDOM_TICK_SPEED);
+-        List<MobCategory> filteredSpawningCategories;
+-        if (flag && (this.spawnEnemies || this.spawnFriendlies)) { // Paper
+-            // Paper start - PlayerNaturallySpawnCreaturesEvent
+-            for (ServerPlayer entityPlayer : this.level.players()) {
+-                int chunkRange = Math.min(level.spigotConfig.mobSpawnRange, entityPlayer.getBukkitEntity().getViewDistance());
+-                chunkRange = Math.min(chunkRange, 8);
+-                entityPlayer.playerNaturallySpawnedEvent = new com.destroystokyo.paper.event.entity.PlayerNaturallySpawnCreaturesEvent(entityPlayer.getBukkitEntity(), (byte) chunkRange);
+-                entityPlayer.playerNaturallySpawnedEvent.callEvent();
+-            }
+-            // Paper end - PlayerNaturallySpawnCreaturesEvent
+-            boolean flag1 = this.level.ticksPerSpawnCategory.getLong(org.bukkit.entity.SpawnCategory.ANIMAL) != 0L && this.level.getGameTime() % this.level.ticksPerSpawnCategory.getLong(org.bukkit.entity.SpawnCategory.ANIMAL) == 0L; // CraftBukkit
+-            filteredSpawningCategories = NaturalSpawner.getFilteredSpawningCategories(lastSpawnState, this.spawnFriendlies, this.spawnEnemies, flag1, this.level); // CraftBukkit // Pufferfish
+-        } else {
+-            filteredSpawningCategories = List.of();
+-        }
+-
+-        List<LevelChunk> list = this.spawningChunks;
+-
+-        try {
+-            profiler.popPush("filteringSpawningChunks");
+-            if (org.dreeam.leaf.config.modules.opt.OptimizeMobSpawning.enabled) { this.level.natureSpawnChunkMap.tick(this.level, list); } else { this.chunkMap.collectSpawningChunks(list); } // Leaf - optimize mob spawning
+-            profiler.popPush("shuffleSpawningChunks");
+-            // Paper start - chunk tick iteration optimisation
+-            // Leaf start - paw optimization - Only set seed if is really used
+-            if (!this.level.paperConfig().entities.spawning.perPlayerMobSpawns) {
+-                this.shuffleRandom.setSeed(this.level.random.nextLong());
+-                Util.shuffle(list, this.shuffleRandom); // Paper - Optional per player mob spawns; do not need this when per-player is enabled
+-            }
+-            // Leaf end - paw optimization - Only set seed if is really used
+-            // Paper end - chunk tick iteration optimisation
+-            profiler.popPush("tickSpawningChunks");
+-
+-            // Leaf start - optimize mob spawning
+-            if (!org.dreeam.leaf.config.modules.async.AsyncMobSpawning.enabled || _pufferfish_spawnCountsReady.get()) {
+-                NaturalSpawner.SpawnState currentState = lastSpawnState;
+-                if (currentState != null) {
+-                    // AsyncMobSpawning && _pufferfish_spawnCountsReady
+-                    if (org.dreeam.leaf.config.modules.async.AsyncMobSpawning.enabled) {
+-                        updatePerPlayerMobCount();
+-                    }
+-                    currentState.applyPerPlayerMobCount(level);
+-                    if (list instanceof it.unimi.dsi.fastutil.objects.ObjectArrayList<LevelChunk> levelChunks) {
+-                        Object[] raw = levelChunks.elements();
+-                        for (int _index = 0, _size = levelChunks.size(); _index < _size; _index++) {
+-                            this.tickSpawningChunk((LevelChunk) raw[_index], timeInhabited, filteredSpawningCategories, currentState); // Pufferfish
+-                        }
+-                    } else {
+-                        for (LevelChunk levelChunk : list) {
+-                            this.tickSpawningChunk(levelChunk, timeInhabited, filteredSpawningCategories, currentState); // Pufferfish
+-                        }
+-                    }
+-                }
+-            }
+-            // Leaf end - optimize mob spawning
+-        } finally {
+-            this.level.natureSpawnChunkMap.clear(); // Leaf - optimize mob spawning
+-            list.clear();
+-        }
+-
+-        profiler.popPush("tickTickingChunks");
+-        // Leaf start - optimize random tick
++        profiler.push("tickTickingChunks");
+         if (org.dreeam.leaf.config.modules.opt.OptimizeRandomTick.enabled) {
+             this.level.randomTickSystem.tick(this.level);
+         } else {
+-            this.iterateTickingChunksFaster(); // Paper - chunk tick iteration optimisations
+-        }
+-        // Leaf end - optimize random tick
+-        if (flag) {
+-            profiler.popPush("customSpawners");
+-            this.level.tickCustomSpawners(this.spawnEnemies);
++            this.iterateTickingChunksFaster();
+         }
+-
+         profiler.pop();
+     }
+ 
+-    private void tickSpawningChunk(LevelChunk chunk, long timeInhabited, List<MobCategory> spawnCategories, NaturalSpawner.SpawnState spawnState) {
+-        ChunkPos pos = chunk.getPos();
+-        chunk.incrementInhabitedTime(timeInhabited);
+-        if (true) { // Paper - rewrite chunk system
+-            this.level.tickThunder(chunk);
+-        }
+-
+-        if (!spawnCategories.isEmpty()) {
+-            if (this.level.getWorldBorder().isWithinBounds(pos)) { // Paper - rewrite chunk system // Leaf - optimize mob spawning
+-                NaturalSpawner.spawnForChunk(this.level, chunk, spawnState, spawnCategories);
+-            }
+-        }
+-    }
+-
+-    private void getFullChunk(long chunkPos, Consumer<LevelChunk> fullChunkGetter) {
+-        // Paper start - rewrite chunk system
+-        // note: bypass currentlyLoaded from getChunkNow
+-        final LevelChunk fullChunk = this.fullChunks.get(chunkPos);
+-        if (fullChunk != null) {
+-            fullChunkGetter.accept(fullChunk);
+-        }
+-        // Paper end - rewrite chunk system
+-    }
+-
+     @Override
+     public String gatherStats() {
+         return Integer.toString(this.getLoadedChunksCount());
+@@ -866,7 +708,7 @@ public class ServerChunkCache extends ChunkSource implements ca.spottedleaf.moon
+ 
+     @VisibleForDebug
+     public NaturalSpawner.@Nullable SpawnState getLastSpawnState() {
+-        return this.lastSpawnState;
++        return null;
+     }
+ 
+     public void deactivateTicketsOnClosing() {
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index acaaf7d8648bc9d55721ee35bcea619e63a26005..e77c1e7b1a67904afdce20ee057639bd75c70d89 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -1220,7 +1220,6 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+     // Paper end - optimise random ticking
+ 
+     public final org.dreeam.leaf.world.DespawnMap despawnMap = new org.dreeam.leaf.world.DespawnMap(); // Leaf - optimize despawn
+-    public final org.dreeam.leaf.world.NatureSpawnChunkMap natureSpawnChunkMap = new org.dreeam.leaf.world.NatureSpawnChunkMap(); // Leaf - optimize mob spawning
+     public final org.dreeam.leaf.world.RandomTickSystem randomTickSystem = new org.dreeam.leaf.world.RandomTickSystem(); // Leaf - optimize random tick
+     public final org.dreeam.leaf.world.EntityCollisionCache entityCollisionCache = new org.dreeam.leaf.world.EntityCollisionCache(); // Leaf - cache collision list
+     public final org.dreeam.leaf.util.FastBitRadixSort fastBitRadixSort = new org.dreeam.leaf.util.FastBitRadixSort(); // Leaf - fast bit radix sort
+diff --git a/net/minecraft/server/waypoints/ServerWaypointManager.java b/net/minecraft/server/waypoints/ServerWaypointManager.java
+index 81b60e5f6ed263e8bfabd673e3b0fb74efc5a9ba..dc779641a400630fe76be467dbb46ee90b2aea97 100644
+--- a/net/minecraft/server/waypoints/ServerWaypointManager.java
++++ b/net/minecraft/server/waypoints/ServerWaypointManager.java
+@@ -25,7 +25,7 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
+     private final net.minecraft.server.level.ServerLevel level;
+     public ServerWaypointManager(net.minecraft.server.level.ServerLevel level) {
+         this.level = level;
+-        this.locatorBarEnabled = level.getGameRules().get(GameRules.LOCATOR_BAR); // Paper - optimize ServerWaypointManager with locator bar disabled
++        this.locatorBarEnabled = false;
+     }
+     // Leaf end - SparklyPaper - parallel world ticking
+ 
+diff --git a/net/minecraft/world/level/NaturalSpawner.java b/net/minecraft/world/level/NaturalSpawner.java
+index 51f1241df3d8462634d161aa33a53fc468c65f52..e398f8e33dd79ba3edb0b18b10588b0bd39df91e 100644
+--- a/net/minecraft/world/level/NaturalSpawner.java
++++ b/net/minecraft/world/level/NaturalSpawner.java
+@@ -164,17 +164,6 @@ public final class NaturalSpawner {
+             // Paper start - Optional per player mob spawns
+             final boolean canSpawn;
+             int maxSpawns = Integer.MAX_VALUE;
+-            // Leaf start - throttle mob spawning
+-            if (org.dreeam.leaf.config.modules.opt.ThrottleNaturalMobSpawning.enabled) {
+-                int spawnChance = org.dreeam.leaf.config.modules.opt.ThrottleNaturalMobSpawning.spawnChance[mobCategory.ordinal()];
+-                long failedAttempt = org.dreeam.leaf.config.modules.opt.ThrottleNaturalMobSpawning.failedAttempts[mobCategory.ordinal()];
+-                if (failedAttempt >= 0L
+-                    && chunk.failedSpawnAttempts[mobCategory.ordinal()] >= failedAttempt
+-                    && (level.random.nextInt() & Integer.MAX_VALUE) >= spawnChance) {
+-                    continue;
+-                }
+-            }
+-            // Leaf end - throttle mob spawning
+             if (level.paperConfig().entities.spawning.perPlayerMobSpawns) {
+                 // Copied from getFilteredSpawningCategories
+                 int limit = mobCategory.getMaxInstancesPerChunk();
+@@ -353,7 +342,8 @@ public final class NaturalSpawner {
+                     double d = x + 0.5;
+                     double d1 = z + 0.5;
+                     //Player nearestPlayer = level.getNearestPlayer(d, y, d1, -1.0, level.purpurConfig.mobSpawningIgnoreCreativePlayers); // Purpur - mob spawning option to ignore creative players // Leaf - optimize mob spawning
+-                    double d2 = level.natureSpawnChunkMap.nearest(level, d, y, d1); // Leaf - optimize mob spawning
++                    Player nearestPlayer = level.getNearestPlayer(d, y, d1, -1.0, level.purpurConfig.mobSpawningIgnoreCreativePlayers);
++                    double d2 = nearestPlayer == null ? Double.POSITIVE_INFINITY : nearestPlayer.distanceToSqr(d, y, d1);
+                     if (d2 != Double.POSITIVE_INFINITY) { // Leaf - optimize mob spawning
+                         //double d2 = nearestPlayer.distanceToSqr(d, y, d1); // Leaf - optimize mob spawning
+                         if ((ChunkPos.asLong(mutableBlockPos) == chunk.coordinateKey || level.isLoadedAndInBounds(mutableBlockPos)) && isRightDistanceToPlayerAndSpawnPoint(level, chunk, mutableBlockPos, d2)) { // Paper - don't load chunks for mob spawn // Leaf - optimize mob spawning
