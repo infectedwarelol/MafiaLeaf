@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 01:07:21 +0200
+Subject: [PATCH] Keep running tick spacing sum in TickData
+
+
+diff --git a/src/main/java/ca/spottedleaf/moonrise/common/time/TickData.java b/src/main/java/ca/spottedleaf/moonrise/common/time/TickData.java
+index 9d46b26ab531b01189b7e57bfc5befa11de9f0b1..52f4b6ac57073668370a3e098e91193af9b7f2b9 100644
+--- a/src/main/java/ca/spottedleaf/moonrise/common/time/TickData.java
++++ b/src/main/java/ca/spottedleaf/moonrise/common/time/TickData.java
+@@ -11,6 +11,8 @@ public final class TickData {
+     private final long interval; // ns
+ 
+     private final ArrayDeque<TickTime> timeData = new ArrayDeque<>();
++    private final ArrayDeque<TickTime> ticksWithoutPrevious = new ArrayDeque<>();
++    private long linkedTickSpacingSum;
+ 
+     public TickData(final long intervalNS) {
+         this.interval = intervalNS;
+@@ -26,9 +28,27 @@ public final class TickData {
+                 break;
+             }
+             this.timeData.pollFirst();
++            this.untrackSpacing(first);
+         }
+ 
+         this.timeData.add(time);
++        this.trackSpacing(time);
++    }
++
++    private void trackSpacing(final TickTime time) {
++        if (time.hasLastTick()) {
++            this.linkedTickSpacingSum += time.tickStart() - time.previousTickStart();
++        } else {
++            this.ticksWithoutPrevious.add(time);
++        }
++    }
++
++    private void untrackSpacing(final TickTime time) {
++        if (time.hasLastTick()) {
++            this.linkedTickSpacingSum -= time.tickStart() - time.previousTickStart();
++        } else {
++            this.ticksWithoutPrevious.remove(time);
++        }
+     }
+ 
+     // fromIndex inclusive, toIndex exclusive
+@@ -102,7 +122,7 @@ public final class TickData {
+             return null;
+         }
+ 
+-        long totalTimeBetweenTicks = 0L;
++        long totalTimeBetweenTicks = this.linkedTickSpacingSum;
+         int collectedTicks = this.timeData.size();
+ 
+         if (inProgress != null) {
+@@ -110,7 +130,7 @@ public final class TickData {
+             totalTimeBetweenTicks += inProgress.differenceFromLastTick(tickInterval);
+         }
+ 
+-        for (final TickTime time : this.timeData) {
++        for (final TickTime time : this.ticksWithoutPrevious) {
+             totalTimeBetweenTicks += time.differenceFromLastTick(tickInterval);
+         }
+         return Double.valueOf((double)collectedTicks / ((double)totalTimeBetweenTicks / 1.0E9));
