@@ -1,0 +1,11 @@
+--- a/net/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket.java
++++ b/net/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket.java
+@@ -41,7 +_,7 @@
+         }
+     }
+ 
+-    private ClientboundUpdateAttributesPacket(int entityId, List<ClientboundUpdateAttributesPacket.AttributeSnapshot> attributes) {
++    public ClientboundUpdateAttributesPacket(int entityId, List<ClientboundUpdateAttributesPacket.AttributeSnapshot> attributes) {
+         this.entityId = entityId;
+         this.attributes = attributes;
+     }

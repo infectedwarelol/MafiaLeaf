@@ -1,0 +1,11 @@
+--- a/net/minecraft/world/level/material/FlowingFluid.java
++++ b/net/minecraft/world/level/material/FlowingFluid.java
+@@ -446,7 +_,7 @@
+         return map;
+     }
+ 
+-    private static boolean canHoldAnyFluid(BlockState state) {
++    public static boolean canHoldAnyFluid(BlockState state) {
+         Block block = state.getBlock();
+         return block instanceof LiquidBlockContainer
+             || !state.blocksMotion()

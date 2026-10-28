@@ -1,99 +1,32 @@
-<img src="public/image/leaf_banner.png" alt="Leaf">
-<div align="center">
+# MafiaLeaf
 
-[![Download](https://img.shields.io/badge/releases-blue?label=download&style=for-the-badge&colorA=19201a&colorB=298046)](https://www.leafmc.one/download)⠀
-[![Github Actions Build](https://img.shields.io/github/actions/workflow/status/Winds-Studio/Leaf/build-12111.yml?&style=for-the-badge&colorA=19201a&colorB=298046)](https://github.com/Winds-Studio/Leaf/actions)⠀
-[![Discord](https://img.shields.io/discord/1145991395388162119?label=discord&style=for-the-badge&colorA=19201a&colorB=298046)](https://discord.gg/gfgAwdSEuM)
-[![Docs](https://img.shields.io/badge/leafmc.one/docs/-blue?label=docs&style=for-the-badge&colorA=19201a&colorB=298046)](https://www.leafmc.one/docs/getting-started)
+**MafiaLeaf** is a Minecraft 1.21.11 server fork of [Leaf](https://github.com/Winds-Studio/Leaf) built only for PigFFA.
+Everything that PigFFA does not use (natural mob spawning, locator bar waypoints, upstream update checks) is removed,
+and the hot paths of a crowded FFA arena (player tracking, respawns, combat, tick statistics) are optimized.
 
-**Leaf** is a [Paper](https://papermc.io/) fork designed to be customizable and high-performance.
-</div>
+It stays fully compatible with Bukkit, Spigot, Paper and Leaf plugins.
 
-> [!WARNING]
-> Leaf is a performance-oriented fork. Make sure to take backups **before** switching to it. Everyone is welcome to contribute optimizations or report issues to help us improve.
+## Building
 
-**English** | [中文](public/readme/README_CN.md)
-
-## 🍃 Features
-- **Based on [Paper](https://papermc.io/)** for generic performance and flexible API
-- **Async** pathfinding, mob spawning and entity tracker
-- **Various optimizations** blending from [other forks](#-credits) and our own
-- **Fully compatible** with Spigot and Paper plugins
-- **Latest dependencies**, keeping all dependencies up-to-date
-- **Allows all characters in usernames**, including Chinese and other characters
-- **Fixes** some Minecraft bugs
-- **Mod Protocols** support
-- **More customized** relying on features of [Purpur](https://github.com/PurpurMC/Purpur)
-- **Linear region file format**, to save disk space
-- **Maintenance friendly**, integrating with [Sentry](https://sentry.io/welcome/) of [Pufferfish](https://github.com/pufferfish-gg/Pufferfish) to easily track all errors coming from your server in extreme detail
-- And more...
-
-## 📈 bStats
-[![bStats Graph Data](https://bstats.org/signatures/server-implementation/Leaf.svg)](https://bstats.org/plugin/server-implementation/Leaf)
-
-## 📫 Contact
-- Discord: [`https://discord.com/invite/gfgAwdSEuM`](https://discord.com/invite/gfgAwdSEuM)
-- QQ Group: `619278377`
-
-## 📫 Donation
-If you love our work, feel free to donate via our [Open Collective](https://opencollective.com/Winds-Studio) or [Dreeam's AFDIAN](https://afdian.com/a/Dreeam) :)
-
-## 📥 Download
-Download Leaf from our [Website](https://www.leafmc.one/download) or get latest build in [GitHub Releases](https://github.com/Winds-Studio/Leaf/releases)
-
-## 📄 Documentation
-Documentation about how to use/configure Leaf: [Leaf Docs](https://www.leafmc.one/docs/getting-started)
-
-## 📦 Building
-Building a Paperclip JAR for distribution:
 ```bash
-./gradlew applyAllPatches && ./gradlew createMojmapPaperclipJar
+./gradlew applyAllPatches
+./gradlew createMojmapPaperclipJar
 ```
 
+The server jar is written to `mafialeaf-server/build/libs/mafialeaf-paperclip-1.21.11-R0.1-SNAPSHOT-mojmap.jar`.
 
-## 📦 API
-<details>
-<summary>Click to expand</summary>
+## Configuration
 
-### Maven
-```xml
-<repository>
-    <id>leafmc</id>
-    <url>https://maven.leafmc.one/snapshots/</url>
-</repository>
-```
-```xml
-<dependency>
-    <groupId>cn.dreeam.leaf</groupId>
-    <artifactId>leaf-api</artifactId>
-    <version>1.21.11-R0.1-SNAPSHOT</version>
-    <scope>provided</scope>
-</dependency>
-```
-### Gradle
-```kotlin
-repositories {
-  maven {
-    url = uri("https://maven.leafmc.one/snapshots/")
-  }
-}
+The global config lives in `config/mafialeaf-global.yml`. An existing `config/leaf-global.yml` is migrated automatically.
+Admin command: `/mafialeaf` (alias `/leaf`).
 
-dependencies {
-    compileOnly("cn.dreeam.leaf:leaf-api:1.21.11-R0.1-SNAPSHOT")
-}
+## License
 
-java {
-  toolchain.languageVersion.set(JavaLanguageVersion.of(21))
-}
-```
-</details>
-
-## ⚖️ License
-Leaf is licensed under various open source licenses from its upstream projects. See [LICENSE.md](LICENSE.md) for full details.
+MafiaLeaf keeps the licenses of all upstream projects, see [LICENSE.md](LICENSE.md) and [licenses](licenses).
 
 ## 📜 Credits
-Thanks to these projects below. Leaf includes some patches taken from them.<br>
-If these excellent projects hadn't existed, Leaf wouldn't have become great.
+Thanks to these projects below. MafiaLeaf and Leaf include patches taken from them.<br>
+If these excellent projects hadn't existed, neither Leaf nor MafiaLeaf would exist.
 
 - [Gale](https://github.com/Dreeam-qwq/Gale) ([Original Repo](https://github.com/GaleMC/Gale))
 - [Pufferfish](https://github.com/pufferfish-gg/Pufferfish)

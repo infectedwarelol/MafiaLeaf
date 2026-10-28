@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 01:31:30 +0200
+Subject: [PATCH] Rebrand to MafiaLeaf
+
+
+diff --git a/net/minecraft/world/level/storage/PlayerDataStorage.java b/net/minecraft/world/level/storage/PlayerDataStorage.java
+index 1d5666b7b5167b607b13874830fa7b33f22c945a..4ca87db1f20e8cbe850aeceed0dab07e31a44caf 100644
+--- a/net/minecraft/world/level/storage/PlayerDataStorage.java
++++ b/net/minecraft/world/level/storage/PlayerDataStorage.java
+@@ -97,7 +97,7 @@ public class PlayerDataStorage {
+                 String threadDump = "";
+                 var threadMXBean = java.lang.management.ManagementFactory.getThreadMXBean();
+                 for (var threadInfo : threadMXBean.dumpAllThreads(true, true)) {
+-                    if (threadInfo.getThreadName().equals("Leaf IO Thread")) { // TODO: We should use instanceOf here
++                    if (threadInfo.getThreadName().equals("MafiaLeaf IO Thread")) { // TODO: We should use instanceOf here
+                         threadDump = threadInfo.toString();
+                         break;
+                     }

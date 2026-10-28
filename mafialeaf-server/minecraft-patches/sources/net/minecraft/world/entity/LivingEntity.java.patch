@@ -1,0 +1,20 @@
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -241,7 +_,7 @@
+     public @Nullable EntityReference<Player> lastHurtByPlayer;
+     public int lastHurtByPlayerMemoryTime;
+     protected boolean dead;
+-    protected int noActionTime;
++    public int noActionTime;
+     public float lastHurt;
+     public boolean jumping;
+     public float xxa;
+@@ -3799,7 +_,7 @@
+         }
+     }
+ 
+-    protected boolean canGlide() {
++    public boolean canGlide() {
+         if (!this.onGround() && !this.isPassenger() && !this.hasEffect(MobEffects.LEVITATION)) {
+             for (EquipmentSlot equipmentSlot : EquipmentSlot.VALUES) {
+                 if (canGlideUsing(this.getItemBySlot(equipmentSlot), equipmentSlot)) {

@@ -23,8 +23,8 @@ build-data/dev-imports.txt
 leaf-archived-patches/todo
 run
 
-leaf-api/build.gradle.kts
-leaf-server/build.gradle.kts
-leaf-server/src/minecraft
+mafialeaf-api/build.gradle.kts
+mafialeaf-server/build.gradle.kts
+mafialeaf-server/src/minecraft
 paper-api
 paper-server

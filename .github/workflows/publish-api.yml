@@ -41,7 +41,7 @@ jobs:
       - name: Publish Maven API
         continue-on-error: true
         run: |
-          ./gradlew :leaf-api:publish
+          ./gradlew :mafialeaf-api:publish
           ./gradlew publishDevBundlePublicationToLeafRepository -PpublishDevBundle=true
         env:
           REPO_USER: ${{ secrets.REPO_USER }}

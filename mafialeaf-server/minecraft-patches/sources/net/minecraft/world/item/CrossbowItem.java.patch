@@ -1,0 +1,11 @@
+--- a/net/minecraft/world/item/CrossbowItem.java
++++ b/net/minecraft/world/item/CrossbowItem.java
+@@ -183,7 +_,7 @@
+         }
+     }
+ 
+-    private static float getShotPitch(RandomSource random, int index) {
++    public static float getShotPitch(RandomSource random, int index) {
+         return index == 0 ? 1.0F : getRandomShotPitch((index & 1) == 1, random);
+     }
+ 

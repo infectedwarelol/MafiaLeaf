@@ -1,0 +1,20 @@
+--- a/net/minecraft/world/level/block/state/BlockBehaviour.java
++++ b/net/minecraft/world/level/block/state/BlockBehaviour.java
+@@ -89,7 +_,7 @@
+         Direction.WEST, Direction.EAST, Direction.NORTH, Direction.SOUTH, Direction.DOWN, Direction.UP
+     };
+     public final boolean hasCollision;
+-    protected final float explosionResistance;
++    public float explosionResistance;
+     protected final boolean isRandomlyTicking;
+     protected final SoundType soundType;
+     protected final float friction;
+@@ -1048,7 +_,7 @@
+             private static final Direction[] DIRECTIONS = Direction.values();
+             private static final int SUPPORT_TYPE_COUNT = SupportType.values().length;
+             protected final VoxelShape collisionShape;
+-            protected final boolean largeCollisionShape;
++            protected boolean largeCollisionShape;
+             private final boolean[] faceSturdy;
+             protected final boolean isCollisionShapeFullBlock;
+ 
