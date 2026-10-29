@@ -84,6 +84,7 @@ public class LeafConfig {
     public static void loadConfig() {
         try {
             long begin = System.nanoTime();
+            me.jules.mafialeaf.StartupDiagnostics.report();
             LOGGER.info("Loading config...");
 
             purgeOutdated();
