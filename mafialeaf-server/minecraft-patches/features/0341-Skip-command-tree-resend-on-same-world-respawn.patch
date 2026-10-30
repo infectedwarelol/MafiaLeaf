@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 02:36:55 +0200
+Subject: [PATCH] Skip command tree resend on same world respawn
+
+
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index ccf2a7d2fbff4bfc9b6e4606059b4b2863071a08..f1a31f602f80644b5832c6bba6c038dae1eff0e8 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -838,7 +838,7 @@ public abstract class PlayerList {
+             .send(new ClientboundSetExperiencePacket(serverPlayer.experienceProgress, serverPlayer.totalExperience, serverPlayer.experienceLevel));
+         this.sendActivePlayerEffects(serverPlayer);
+         this.sendLevelInfo(serverPlayer, level);
+-        this.sendPlayerPermissionLevel(serverPlayer);
++        this.sendPlayerPermissionLevel(serverPlayer, fromLevel != level);
+         level.addRespawnedPlayer(serverPlayer);
+         this.players.add(serverPlayer);
+         this.playersByName.put(serverPlayer.getScoreboardName().toLowerCase(java.util.Locale.ROOT), serverPlayer); // Paper

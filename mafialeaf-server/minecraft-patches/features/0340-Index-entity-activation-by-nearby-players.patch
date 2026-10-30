@@ -1,0 +1,121 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 02:36:12 +0200
+Subject: [PATCH] Index entity activation by nearby players
+
+
+diff --git a/io/papermc/paper/entity/activation/ActivationRange.java b/io/papermc/paper/entity/activation/ActivationRange.java
+index 45b17a4fbb7f4941f23f5bf4983f9eccf425b73f..5a332747a9dac50ab0fac7074c956a660516c570 100644
+--- a/io/papermc/paper/entity/activation/ActivationRange.java
++++ b/io/papermc/paper/entity/activation/ActivationRange.java
+@@ -155,6 +155,11 @@ public final class ActivationRange {
+         maxRange = Math.max(maxRange, villagerActivationRange);
+         maxRange = Math.min((world.spigotConfig.simulationDistance << 4) - 8, maxRange);
+ 
++        if (world instanceof net.minecraft.server.level.ServerLevel serverLevel && maxRange <= INDEXED_ACTIVATION_RANGE_LIMIT) {
++            activateEntitiesByNearbyPlayers(serverLevel, maxRange);
++            return;
++        }
++
+         for (final Player player : world.players()) {
+             player.activatedTick = MinecraftServer.currentTick;
+             if (world.spigotConfig.ignoreSpectatorActivation && player.isSpectator()) {
+@@ -201,6 +206,98 @@ public final class ActivationRange {
+         }
+     }
+ 
++    private static final int INDEXED_ACTIVATION_RANGE_LIMIT = 128;
++
++    private static void activateEntitiesByNearbyPlayers(final net.minecraft.server.level.ServerLevel world, final int maxRange) {
++        final int currentTick = MinecraftServer.currentTick;
++        for (final Player player : world.players()) {
++            player.activatedTick = currentTick;
++        }
++
++        final SpigotWorldConfig config = world.spigotConfig;
++        final boolean tickMarkers = world.paperConfig().entities.markers.tick;
++        final boolean ignoreSpectators = config.ignoreSpectatorActivation;
++        final boolean tickNearAfkPlayers = world.purpurConfig.idleTimeoutTickNearbyEntities;
++        final double worldHeight = world.getHeight();
++        final ca.spottedleaf.moonrise.common.misc.NearbyPlayers nearbyPlayers = world.moonrise$getNearbyPlayers();
++
++        for (final Entity entity : world.moonrise$getEntityLookup().getAllCopy()) {
++            if (entity instanceof Player || (!tickMarkers && entity instanceof Marker)) {
++                continue;
++            }
++
++            final ca.spottedleaf.moonrise.common.list.ReferenceList<net.minecraft.server.level.ServerPlayer> candidates = nearbyPlayers.getPlayersByBlock(
++                entity.getBlockX(), entity.getBlockZ(), ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL_SMALL
++            );
++            if (candidates == null) {
++                continue;
++            }
++
++            final AABB entityBox = entity.getBoundingBox();
++            final int typeRange = activationRangeOf(entity.activationType, config);
++            final net.minecraft.server.level.ServerPlayer[] players = candidates.getRawDataUnchecked();
++            boolean inMaxRange = false;
++            boolean inTypeRange = false;
++            double nearestDistanceSquared = Double.MAX_VALUE;
++
++            for (int index = 0, size = candidates.size(); index < size; ++index) {
++                final net.minecraft.server.level.ServerPlayer player = players[index];
++                if ((ignoreSpectators && player.isSpectator()) || (!tickNearAfkPlayers && player.isAfk())) {
++                    continue;
++                }
++                final AABB playerBox = player.getBoundingBox();
++                if (!intersectsInflated(playerBox, maxRange, worldHeight, entityBox)) {
++                    continue;
++                }
++                inMaxRange = true;
++                if (!inTypeRange && intersectsInflated(playerBox, typeRange, worldHeight, entityBox)) {
++                    inTypeRange = true;
++                }
++                nearestDistanceSquared = Math.min(nearestDistanceSquared, player.distanceToSqr(entity));
++            }
++
++            if (!inMaxRange) {
++                continue;
++            }
++
++            if (currentTick > entity.activatedTick && (entity.defaultActivationState || inTypeRange)) {
++                entity.activatedTick = currentTick;
++            }
++
++            if (org.dreeam.leaf.config.modules.opt.DynamicActivationofBrain.enabled && entity.getType().dabEnabled &&
++                    (!org.dreeam.leaf.config.modules.opt.DynamicActivationofBrain.dontEnableIfInWater || entity.getType().is(net.minecraft.tags.EntityTypeTags.CAN_BREATHE_UNDER_WATER) || !entity.isInWater())) {
++                if (!entity.activatedPriorityReset) {
++                    entity.activatedPriorityReset = true;
++                    entity.activatedPriority = org.dreeam.leaf.config.modules.opt.DynamicActivationofBrain.maximumActivationPrio;
++                }
++                final int squaredDistance = (int) nearestDistanceSquared;
++                entity.activatedPriority = squaredDistance > org.dreeam.leaf.config.modules.opt.DynamicActivationofBrain.startDistanceSquared ?
++                        Math.max(1, Math.min(squaredDistance >> org.dreeam.leaf.config.modules.opt.DynamicActivationofBrain.activationDistanceMod, entity.activatedPriority)) :
++                        1;
++            } else {
++                entity.activatedPriority = 1;
++            }
++        }
++    }
++
++    private static boolean intersectsInflated(final AABB source, final double horizontal, final double vertical, final AABB target) {
++        return source.minX - horizontal < target.maxX && source.maxX + horizontal > target.minX
++            && source.minY - vertical < target.maxY && source.maxY + vertical > target.minY
++            && source.minZ - horizontal < target.maxZ && source.maxZ + horizontal > target.minZ;
++    }
++
++    private static int activationRangeOf(final ActivationType type, final SpigotWorldConfig config) {
++        return switch (type) {
++            case RAIDER -> config.raiderActivationRange;
++            case ANIMAL -> config.animalActivationRange;
++            case MONSTER -> config.monsterActivationRange;
++            case WATER -> config.waterActivationRange;
++            case FLYING_MONSTER -> config.flyingMonsterActivationRange;
++            case VILLAGER -> config.villagerActivationRange;
++            default -> config.miscActivationRange;
++        };
++    }
++
+     /**
+      * Tries to activate an entity.
+      *
