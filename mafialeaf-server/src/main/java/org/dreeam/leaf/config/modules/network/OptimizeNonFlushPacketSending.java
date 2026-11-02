@@ -9,7 +9,7 @@ public class OptimizeNonFlushPacketSending extends ConfigModules {
         return EnumConfigCategory.NETWORK.getBaseKeyName();
     }
 
-    public static boolean enabled = false;
+    public static boolean enabled = true;
 
     @Override
     public void onLoaded() {

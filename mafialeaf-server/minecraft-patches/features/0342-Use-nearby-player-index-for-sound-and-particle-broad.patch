@@ -1,0 +1,113 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 03:04:54 +0200
+Subject: [PATCH] Use nearby player index for sound and particle broadcasts
+
+
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index e77c1e7b1a67904afdce20ee057639bd75c70d89..e565dd261d26d197060b461ee3249aff86c14604 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -2423,6 +2423,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+ 
+         for (int i1 = 0; i1 < receivers.size(); i1++) { // Paper - particle API
+             ServerPlayer serverPlayer = receivers.get(i1); // Paper - particle API
++            if (!this.isWithinParticleRange(serverPlayer, overrideLimiter, x, y, z)) continue;
+             if (sender != null && !serverPlayer.getBukkitEntity().canSee(sender.getBukkitEntity())) continue; // CraftBukkit // Leaf - Remove stream in CraftWorld#spawnParticle - diff on change
+             if (this.sendParticles(serverPlayer, overrideLimiter, x, y, z, clientboundLevelParticlesPacket)) {
+                 i++;
+@@ -2493,17 +2494,23 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+     }
+ 
+     private boolean sendParticles(ServerPlayer player, boolean overrideLimiter, double x, double y, double z, Packet<?> packet) {
++        if (!this.isWithinParticleRange(player, overrideLimiter, x, y, z)) {
++            return false;
++        }
++        player.connection.send(packet);
++        return true;
++    }
++
++    private boolean isWithinParticleRange(ServerPlayer player, boolean overrideLimiter, double x, double y, double z) {
+         if (player.level() != this) {
+             return false;
+-        } else {
+-            BlockPos blockPos = player.blockPosition();
+-            if (blockPos.closerToCenterThan(new Vec3(x, y, z), overrideLimiter ? 512.0 : 32.0)) {
+-                player.connection.send(packet);
+-                return true;
+-            } else {
+-                return false;
+-            }
+         }
++        final BlockPos blockPos = player.blockPosition();
++        final double range = overrideLimiter ? 512.0 : 32.0;
++        final double dx = blockPos.getX() + 0.5 - x;
++        final double dy = blockPos.getY() + 0.5 - y;
++        final double dz = blockPos.getZ() + 0.5 - z;
++        return dx * dx + dy * dy + dz * dz < range * range;
+     }
+ 
+     @Override
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index f1a31f602f80644b5832c6bba6c038dae1eff0e8..65fc807af299a7e57b6746cd73bc3ec2e3cec6e2 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -1195,23 +1195,45 @@ public abstract class PlayerList {
+         return this.playersByName.get(username.toLowerCase(java.util.Locale.ROOT)); // Spigot
+     }
+ 
++    private static final double INDEXED_BROADCAST_RADIUS_LIMIT = 128.0;
++
+     public void broadcast(@Nullable Player except, double x, double y, double z, double radius, ResourceKey<Level> dimension, Packet<?> packet) {
+-        for (int i = 0; i < this.players.size(); i++) {
+-            ServerPlayer serverPlayer = this.players.get(i);
+-            // CraftBukkit start - Test if player receiving packet can see the source of the packet
+-            if (except != null && !serverPlayer.getBukkitEntity().canSee(except.getBukkitEntity())) {
+-               continue;
+-            }
+-            // CraftBukkit end
+-            if (serverPlayer != except && serverPlayer.level().dimension() == dimension) {
+-                double d = x - serverPlayer.getX();
+-                double d1 = y - serverPlayer.getY();
+-                double d2 = z - serverPlayer.getZ();
+-                if (d * d + d1 * d1 + d2 * d2 < radius * radius) {
+-                    serverPlayer.connection.send(packet);
++        final double radiusSquared = radius * radius;
++        if (radius <= INDEXED_BROADCAST_RADIUS_LIMIT && ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()) {
++            final ServerLevel level = this.server.getLevel(dimension);
++            if (level != null) {
++                final ca.spottedleaf.moonrise.common.list.ReferenceList<ServerPlayer> nearby = level.moonrise$getNearbyPlayers().getPlayersByBlock(
++                    net.minecraft.util.Mth.floor(x), net.minecraft.util.Mth.floor(z), ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL_SMALL
++                );
++                if (nearby == null) {
++                    return;
+                 }
++                final ServerPlayer[] raw = nearby.getRawDataUnchecked();
++                for (int i = 0, size = nearby.size(); i < size; i++) {
++                    this.broadcastTo(raw[i], except, x, y, z, radiusSquared, dimension, packet);
++                }
++                return;
+             }
+         }
++        for (int i = 0; i < this.players.size(); i++) {
++            this.broadcastTo(this.players.get(i), except, x, y, z, radiusSquared, dimension, packet);
++        }
++    }
++
++    private void broadcastTo(ServerPlayer serverPlayer, @Nullable Player except, double x, double y, double z, double radiusSquared, ResourceKey<Level> dimension, Packet<?> packet) {
++        if (serverPlayer == except || serverPlayer.level().dimension() != dimension) {
++            return;
++        }
++        double d = x - serverPlayer.getX();
++        double d1 = y - serverPlayer.getY();
++        double d2 = z - serverPlayer.getZ();
++        if (d * d + d1 * d1 + d2 * d2 >= radiusSquared) {
++            return;
++        }
++        if (except != null && !serverPlayer.getBukkitEntity().canSee(except.getBukkitEntity())) {
++            return;
++        }
++        serverPlayer.connection.send(packet);
+     }
+ 
+     public void saveAll() {
