@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 04:45:38 +0200
+Subject: [PATCH] Send player knockback velocity only to the hit player
+
+
+diff --git a/net/minecraft/server/level/ServerEntity.java b/net/minecraft/server/level/ServerEntity.java
+index 9e12f50d758af4a22db0135a0960878568268311..111bfaf87d901a337f167585271b4ec6c825266b 100644
+--- a/net/minecraft/server/level/ServerEntity.java
++++ b/net/minecraft/server/level/ServerEntity.java
+@@ -282,7 +282,11 @@ public class ServerEntity {
+             } // Leaf - Multithreaded tracker - diff on change
+             // CraftBukkit end
+             this.entity.hurtMarked = false;
+-            this.synchronizer.sendToTrackingPlayersAndSelf(new ClientboundSetEntityMotionPacket(this.entity)); // Leaf - Multithreaded tracker - diff on change
++            if (this.entity instanceof ServerPlayer serverPlayer) {
++                serverPlayer.connection.send(new ClientboundSetEntityMotionPacket(this.entity));
++            } else {
++                this.synchronizer.sendToTrackingPlayersAndSelf(new ClientboundSetEntityMotionPacket(this.entity)); // Leaf - Multithreaded tracker - diff on change
++            }
+         }
+     }
+ 

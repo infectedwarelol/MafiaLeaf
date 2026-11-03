@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerPlayerConnection;
@@ -93,11 +92,7 @@ public final class AsyncTracker {
             if (cancelled) {
                 continue;
             }
-            ChunkMap.TrackedEntity trackedEntity = player.moonrise$getTrackedEntity();
-            if (trackedEntity == null) {
-                continue;
-            }
-            trackedEntity.sendToTrackingPlayersAndSelf(new ClientboundSetEntityMotionPacket(player));
+            player.connection.send(new ClientboundSetEntityMotionPacket(player));
         }
     }
 
