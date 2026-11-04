@@ -1,0 +1,163 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 05:08:31 +0200
+Subject: [PATCH] Track timed tickets separately in TicketSet
+
+
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
+index 980064656dfd5a95e8e962f65253f3e73f858925..8d83d1a2fceeef00c79c6211a2d516d165301249 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
+@@ -801,6 +801,10 @@ public final class ChunkHolderManager {
+     }
+ 
+     // ret true if expired
++    public static boolean hasRemoveDelay(final Ticket ticket) {
++        return ((ChunkSystemTicket<?>)(Object)ticket).moonrise$getRemoveDelay() != NO_TIMEOUT_MARKER;
++    }
++
+     public static boolean tickTicket(final Ticket ticket) {
+         long removeDelay = ((ChunkSystemTicket<?>)(Object)ticket).moonrise$getRemoveDelay();
+         if (removeDelay == NO_TIMEOUT_MARKER) {
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java b/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java
+index d8db8894324276eb3ec58b4883c5635b44c57847..862253c75f11f5132439f839e315318ce4685817 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java
+@@ -13,16 +13,42 @@ import java.util.function.Predicate;
+ 
+ public final class TicketSet extends AbstractSet<Ticket> {
+ 
++    private static final Ticket[] EMPTY_TICKETS = new Ticket[0];
++
+     private Ticket[] tickets;
+     private int size;
++    private Ticket[] timedTickets = EMPTY_TICKETS;
++    private int timedSize;
+ 
+     public TicketSet(final int initialCapacity) {
+         this.tickets = new Ticket[initialCapacity];
+     }
+ 
+-    private TicketSet(final Ticket[] tickets, final int size) {
++    private TicketSet(final Ticket[] tickets, final int size, final Ticket[] timedTickets, final int timedSize) {
+         this.tickets = tickets;
+         this.size = size;
++        this.timedTickets = timedTickets;
++        this.timedSize = timedSize;
++    }
++
++    private void trackTimed(final Ticket ticket) {
++        if (!ChunkHolderManager.hasRemoveDelay(ticket)) {
++            return;
++        }
++        if (this.timedSize == this.timedTickets.length) {
++            this.timedTickets = Arrays.copyOf(this.timedTickets, Math.max(4, this.timedSize << 1));
++        }
++        this.timedTickets[this.timedSize++] = ticket;
++    }
++
++    private void untrackTimed(final Ticket ticket) {
++        for (int i = 0; i < this.timedSize; ++i) {
++            if (this.timedTickets[i] == ticket) {
++                this.timedTickets[i] = this.timedTickets[--this.timedSize];
++                this.timedTickets[this.timedSize] = null;
++                return;
++            }
++        }
+     }
+ 
+     // returns ~<insertion index> when not found, which is always < 0
+@@ -83,9 +109,11 @@ public final class TicketSet extends AbstractSet<Ticket> {
+ 
+         ++this.size;
+         this.tickets[index] = ticket;
++        this.trackTimed(ticket);
+     }
+ 
+     private void removeAt(final int index) {
++        this.untrackTimed(this.tickets[index]);
+         if (index != --this.size) {
+             System.arraycopy(this.tickets, index + 1, this.tickets, index, this.size - index);
+         }
+@@ -95,7 +123,7 @@ public final class TicketSet extends AbstractSet<Ticket> {
+ 
+     public TicketSet copy() {
+         final int size = this.size;
+-        return new TicketSet(Arrays.copyOf(this.tickets, size), size);
++        return new TicketSet(Arrays.copyOf(this.tickets, size), size, Arrays.copyOf(this.timedTickets, this.timedTickets.length), this.timedSize);
+     }
+ 
+     public Ticket[] copyBackingArray() {
+@@ -106,7 +134,9 @@ public final class TicketSet extends AbstractSet<Ticket> {
+         final int index = binarySearch(this.tickets, 0, this.size, object);
+         if (index >= 0) {
+             final Ticket old = this.tickets[index];
++            this.untrackTimed(old);
+             this.tickets[index] = object;
++            this.trackTimed(object);
+             return old;
+         }
+ 
+@@ -174,40 +204,36 @@ public final class TicketSet extends AbstractSet<Ticket> {
+         Objects.checkFromIndexSize(0, this.size, array.length);
+ 
+         int removed = 0;
+-        int i = 0;
+-        final int len = this.size;
+-        final Ticket[] tickets = this.tickets;
+-
+-        for (;;) {
+-            if (i >= len) {
+-                return removed;
+-            }
+-
+-            final Ticket ticket = tickets[i++];
++        final Ticket[] timed = this.timedTickets;
++        for (int i = 0; i < this.timedSize;) {
++            final Ticket ticket = timed[i];
+             if (!ChunkHolderManager.tickTicket(ticket)) {
++                ++i;
+                 continue;
+             }
+             array[removed++] = ticket;
+-            break;
++            timed[i] = timed[--this.timedSize];
++            timed[this.timedSize] = null;
++            final int index = this.indexOfIdentity(ticket);
++            if (index != --this.size) {
++                System.arraycopy(this.tickets, index + 1, this.tickets, index, this.size - index);
++            }
++            this.tickets[this.size] = null;
+         }
++        return removed;
++    }
+ 
+-        // we only want to write back to backingArray if we really need to
+-
+-        int lastIndex = i - 1; // this is where new elements are shifted to
+-
+-        for (; i < len; ++i) {
+-            final Ticket curr = tickets[i];
+-            if (!ChunkHolderManager.tickTicket(curr)) { // if test throws we're screwed
+-                tickets[lastIndex++] = curr;
+-            } else {
+-                array[removed++] = curr;
++    private int indexOfIdentity(final Ticket ticket) {
++        final int index = binarySearch(this.tickets, 0, this.size, ticket);
++        if (index >= 0 && this.tickets[index] == ticket) {
++            return index;
++        }
++        for (int i = 0; i < this.size; ++i) {
++            if (this.tickets[i] == ticket) {
++                return i;
+             }
+         }
+-
+-        // cleanup end
+-        Arrays.fill(tickets, lastIndex, len, null);
+-        this.size = lastIndex;
+-        return removed;
++        throw new IllegalStateException("Timed ticket " + ticket + " is not present in its ticket set");
+     }
+ 
+     @Override
