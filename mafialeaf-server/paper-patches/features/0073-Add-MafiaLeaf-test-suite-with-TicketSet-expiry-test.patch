@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 06:23:30 +0200
+Subject: [PATCH] Add MafiaLeaf test suite with TicketSet expiry test
+
+
+diff --git a/src/test/java/me/jules/mafialeaf/TicketSetTest.java b/src/test/java/me/jules/mafialeaf/TicketSetTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..8c86b25884100a5a851430cdf13f3224f89ce4f0
+--- /dev/null
++++ b/src/test/java/me/jules/mafialeaf/TicketSetTest.java
+@@ -0,0 +1,87 @@
++package me.jules.mafialeaf;
++
++import ca.spottedleaf.moonrise.patches.chunk_system.player.RegionizedPlayerChunkLoader;
++import ca.spottedleaf.moonrise.patches.chunk_system.ticket.ChunkSystemTicket;
++import ca.spottedleaf.moonrise.patches.chunk_system.util.stream.TicketSet;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.IdentityHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.Set;
++import net.minecraft.server.level.Ticket;
++import net.minecraft.server.level.TicketType;
++import org.bukkit.support.environment.Normal;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.Test;
++
++@Normal
++public class TicketSetTest {
++
++    private static final long NO_TIMEOUT = Long.MIN_VALUE;
++
++    private long nextIdentifier;
++
++    private Ticket newTicket(final TicketType type, final int level, final long removeDelay) {
++        final Ticket ticket = new Ticket(type, level, removeDelay);
++        ((ChunkSystemTicket<Long>) (Object) ticket).moonrise$setIdentifier(this.nextIdentifier++);
++        return ticket;
++    }
++
++    @Test
++    public void expiryMatchesReferenceModel() {
++        final Random random = new Random(1234L);
++        final TicketSet set = new TicketSet(4);
++        final Map<Ticket, Long> expected = new IdentityHashMap<>();
++        final List<Ticket> present = new ArrayList<>();
++
++        for (int step = 0; step < 20_000; ++step) {
++            final int operation = random.nextInt(10);
++            if (operation < 5) {
++                final boolean timed = random.nextInt(4) == 0;
++                final TicketType type = timed ? RegionizedPlayerChunkLoader.PLAYER_TICKET_DELAYED : RegionizedPlayerChunkLoader.PLAYER_TICKET;
++                final long delay = timed ? 1 + random.nextInt(5) : NO_TIMEOUT;
++                final Ticket ticket = this.newTicket(type, 30 + random.nextInt(5), delay);
++                Assertions.assertTrue(set.add(ticket));
++                expected.put(ticket, delay);
++                present.add(ticket);
++            } else if (operation < 7 && !present.isEmpty()) {
++                final Ticket ticket = present.remove(random.nextInt(present.size()));
++                Assertions.assertTrue(set.remove(ticket));
++                expected.remove(ticket);
++            } else {
++                final Ticket[] removedArray = new Ticket[Math.max(1, set.size())];
++                final int removed = set.expireAndRemoveInto(removedArray);
++                final Set<Ticket> expectedRemoved = Collections.newSetFromMap(new IdentityHashMap<>());
++                for (final Map.Entry<Ticket, Long> entry : expected.entrySet()) {
++                    if (entry.getValue() != NO_TIMEOUT) {
++                        final long remaining = entry.getValue() - 1;
++                        entry.setValue(remaining);
++                        if (remaining <= 0) {
++                            expectedRemoved.add(entry.getKey());
++                        }
++                    }
++                }
++                Assertions.assertEquals(expectedRemoved.size(), removed);
++                for (int i = 0; i < removed; ++i) {
++                    Assertions.assertTrue(expectedRemoved.contains(removedArray[i]));
++                }
++                for (final Ticket ticket : expectedRemoved) {
++                    expected.remove(ticket);
++                    present.remove(ticket);
++                }
++            }
++
++            Assertions.assertEquals(expected.size(), set.size());
++            Ticket previous = null;
++            for (final Ticket ticket : set) {
++                Assertions.assertTrue(expected.containsKey(ticket));
++                if (previous != null) {
++                    Assertions.assertTrue(((ChunkSystemTicket<?>) (Object) previous).compareTo(ticket) < 0);
++                }
++                previous = ticket;
++            }
++        }
++    }
++}
+diff --git a/src/test/java/org/bukkit/support/suite/MafiaLeafTestSuite.java b/src/test/java/org/bukkit/support/suite/MafiaLeafTestSuite.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..fd74dca45dc9f8807b2c38cad95a62a82dec7796
+--- /dev/null
++++ b/src/test/java/org/bukkit/support/suite/MafiaLeafTestSuite.java
+@@ -0,0 +1,15 @@
++package org.bukkit.support.suite;
++
++import org.junit.platform.suite.api.ConfigurationParameter;
++import org.junit.platform.suite.api.IncludeTags;
++import org.junit.platform.suite.api.SelectPackages;
++import org.junit.platform.suite.api.Suite;
++import org.junit.platform.suite.api.SuiteDisplayName;
++
++@Suite(failIfNoTests = false)
++@SuiteDisplayName("MafiaLeaf tests")
++@IncludeTags("Normal")
++@SelectPackages("me.jules.mafialeaf")
++@ConfigurationParameter(key = "TestSuite", value = "Normal")
++public class MafiaLeafTestSuite {
++}
