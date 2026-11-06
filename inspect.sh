@@ -28,6 +28,13 @@ while IFS= read -r line; do
     warning "javac: $line"
 done < <(grep -E 'me/jules/mafialeaf/.*\.java:[0-9]+: warning:' "$build_log")
 
+echo "==> Testing"
+test_log="$(mktemp)"
+if ! ./gradlew mafialeaf-server:test --tests 'org.bukkit.support.suite.MafiaLeafTestSuite' --console=plain >"$test_log" 2>&1; then
+    error "MafiaLeaf tests failed: $(grep -m1 -E 'FAILED|What went wrong' "$test_log" || echo 'see gradle output')"
+fi
+rm -f "$test_log"
+
 echo "==> Checking jar"
 version="$(sed -n 's/^version=//p' gradle.properties)"
 jar="mafialeaf-server/build/libs/mafialeaf-paperclip-${version}-mojmap.jar"
