@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 06:54:14 +0200
+Subject: [PATCH] Rebuild tracker seenBy snapshots lazily
+
+
+diff --git a/net/minecraft/server/level/ChunkMap.java b/net/minecraft/server/level/ChunkMap.java
+index ace8962353cb54fce23f696157524d615c89a762..9471c4e82865a6097bdc06f73caf10d63138478c 100644
+--- a/net/minecraft/server/level/ChunkMap.java
++++ b/net/minecraft/server/level/ChunkMap.java
+@@ -1269,15 +1269,16 @@ public class ChunkMap extends SimpleRegionStorage implements ChunkHolder.PlayerP
+         private volatile boolean seenByUpdated = false;
+         private volatile ServerPlayerConnection[] seenByArray = EMPTY_OBJECT_ARRAY;
+         public ServerPlayerConnection[] seenBy() {
+-            if (!seenByUpdated) {
+-                return seenByArray;
+-            } else {
+-                return seenBy.toArray(EMPTY_OBJECT_ARRAY);
++            ServerPlayerConnection[] array = this.seenByArray;
++            if (this.seenByUpdated) {
++                this.seenByUpdated = false;
++                array = this.seenBy.toArray(EMPTY_OBJECT_ARRAY);
++                this.seenByArray = array;
+             }
++            return array;
+         }
+         public void seenByUpdated() {
+-            this.seenByArray = this.seenBy.toArray(EMPTY_OBJECT_ARRAY);
+-            seenByUpdated = false;
++            this.seenByUpdated = true;
+         }
+         // Leaf end - Multithreaded tracker
+ 
