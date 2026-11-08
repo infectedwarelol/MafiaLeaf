@@ -8,7 +8,7 @@ public class OptimizeBiome extends ConfigModules {
         return EnumConfigCategory.PERF.getBaseKeyName() + ".cache-biome";
     }
 
-    public static boolean enabled = false;
+    public static boolean enabled = true;
     public static boolean mobSpawn = false;
     public static boolean advancement = false;
 

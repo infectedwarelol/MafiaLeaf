@@ -9,7 +9,7 @@ public class ReduceUselessPackets extends ConfigModules {
         return EnumConfigCategory.PERF.getBaseKeyName() + ".reduce-packets";
     }
 
-    public static boolean reduceUselessEntityMovePackets = false;
+    public static boolean reduceUselessEntityMovePackets = true;
     public static boolean filterClientboundSetEntityMotionPacket = false;
     public static boolean disableUselessParticles = false;
 
