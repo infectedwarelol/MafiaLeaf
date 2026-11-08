@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 08:07:54 +0200
+Subject: [PATCH] Default player tracking range to 64 blocks
+
+
+diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
+index 43c6240ec2855c0f668ce04de29d22a223d2612f..bd6192711c92921f7746dbf8abbb9264d6882a5b 100644
+--- a/src/main/java/org/spigotmc/SpigotWorldConfig.java
++++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
+@@ -243,7 +243,7 @@ public class SpigotWorldConfig {
+         this.log("Entity Activation Range: An " + this.animalActivationRange + " / Mo " + this.monsterActivationRange + " / Ra " + this.raiderActivationRange + " / Mi " + this.miscActivationRange + " / Tiv " + this.tickInactiveVillagers + " / Isa " + this.ignoreSpectatorActivation);
+     }
+ 
+-    public int playerTrackingRange = 128;
++    public int playerTrackingRange = 64;
+     public int animalTrackingRange = 96;
+     public int monsterTrackingRange = 96;
+     public int miscTrackingRange = 96;
