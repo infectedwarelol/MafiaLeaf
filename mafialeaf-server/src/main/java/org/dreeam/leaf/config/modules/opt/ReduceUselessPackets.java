@@ -11,7 +11,7 @@ public class ReduceUselessPackets extends ConfigModules {
 
     public static boolean reduceUselessEntityMovePackets = true;
     public static boolean filterClientboundSetEntityMotionPacket = false;
-    public static boolean disableUselessParticles = false;
+    public static boolean disableUselessParticles = true;
 
     @Override
     public void onLoaded() {

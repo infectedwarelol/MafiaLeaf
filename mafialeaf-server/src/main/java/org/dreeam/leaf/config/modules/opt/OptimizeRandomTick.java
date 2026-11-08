@@ -11,7 +11,7 @@ public class OptimizeRandomTick extends ConfigModules {
     }
 
     @Experimental
-    public static boolean enabled = false;
+    public static boolean enabled = true;
 
     @Override
     public void onLoaded() {

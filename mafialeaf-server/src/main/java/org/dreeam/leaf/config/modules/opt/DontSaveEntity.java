@@ -9,8 +9,8 @@ public class DontSaveEntity extends ConfigModules {
         return EnumConfigCategory.PERF.getBaseKeyName() + ".dont-save-entity";
     }
 
-    public static boolean dontSavePrimedTNT = false;
-    public static boolean dontSaveFallingBlock = false;
+    public static boolean dontSavePrimedTNT = true;
+    public static boolean dontSaveFallingBlock = true;
 
     @Override
     public void onLoaded() {
