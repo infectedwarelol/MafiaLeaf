@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 17:22:57 +0200
+Subject: [PATCH] Keep chunk loader on same world respawn
+
+
+diff --git a/net/minecraft/server/level/ChunkMap.java b/net/minecraft/server/level/ChunkMap.java
+index 9471c4e82865a6097bdc06f73caf10d63138478c..69b4f1cc41bc062d6cd9bf32b4518ae4840d06f2 100644
+--- a/net/minecraft/server/level/ChunkMap.java
++++ b/net/minecraft/server/level/ChunkMap.java
+@@ -924,8 +924,13 @@ public class ChunkMap extends SimpleRegionStorage implements ChunkHolder.PlayerP
+                 ((ca.spottedleaf.moonrise.patches.chunk_tick_iteration.ChunkTickDistanceManager)this.distanceManager).moonrise$addPlayer(player, SectionPos.of(player)); // Paper - chunk tick iteration optimisation
+             }
+ 
+-            player.setChunkTrackingView(ChunkTrackingView.EMPTY);
+-            ca.spottedleaf.moonrise.common.PlatformHooks.get().addPlayerToDistanceMaps(this.level, player); // Paper - rewrite chunk system
++            if (player.keepChunkLoaderOnRespawn) {
++                player.keepChunkLoaderOnRespawn = false;
++                ca.spottedleaf.moonrise.common.PlatformHooks.get().updateMaps(this.level, player);
++            } else {
++                player.setChunkTrackingView(ChunkTrackingView.EMPTY);
++                ca.spottedleaf.moonrise.common.PlatformHooks.get().addPlayerToDistanceMaps(this.level, player); // Paper - rewrite chunk system
++            }
+         } else {
+             SectionPos lastSectionPos = player.getLastSectionPos();
+             this.playerMap.removePlayer(player);
+@@ -934,7 +939,9 @@ public class ChunkMap extends SimpleRegionStorage implements ChunkHolder.PlayerP
+                 ((ca.spottedleaf.moonrise.patches.chunk_tick_iteration.ChunkTickDistanceManager)this.distanceManager).moonrise$removePlayer(player, SectionPos.of(player)); // Paper - chunk tick iteration optimisation
+             }
+ 
+-            ca.spottedleaf.moonrise.common.PlatformHooks.get().removePlayerFromDistanceMaps(this.level, player); // Paper - rewrite chunk system
++            if (!player.keepChunkLoaderOnRespawn) {
++                ca.spottedleaf.moonrise.common.PlatformHooks.get().removePlayerFromDistanceMaps(this.level, player); // Paper - rewrite chunk system
++            }
+         }
+     }
+ 
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index 67c13021344c93049f218b9dd5a0fccba09be75d..f086d8c2f2a369cb93d077bafd2f5c9ae5993735 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -2876,6 +2876,8 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         this.lastSectionPos = sectionPos;
+     }
+ 
++    public boolean keepChunkLoaderOnRespawn;
++
+     public ChunkTrackingView getChunkTrackingView() {
+         return this.chunkTrackingView;
+     }
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 65fc807af299a7e57b6746cd73bc3ec2e3cec6e2..f9d60d97d14199bb2b667d6879c38b4a5aeffc4e 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -794,6 +794,7 @@ public abstract class PlayerList {
+         this.players.remove(player);
+         this.playersByName.remove(player.getScoreboardName().toLowerCase(java.util.Locale.ROOT)); // Paper
+         this.removeFromSendAllPlayerInfoBuckets(player); // Gale - Purpur - spread out sending all player info
++        player.keepChunkLoaderOnRespawn = fromLevel == teleportTransition.newLevel();
+         player.level().removePlayerImmediately(player, reason);
+         ServerLevel level = teleportTransition.newLevel();
+         ServerPlayer serverPlayer = player; // Paper - TODO - recreate instance
+@@ -840,6 +841,7 @@ public abstract class PlayerList {
+         this.sendLevelInfo(serverPlayer, level);
+         this.sendPlayerPermissionLevel(serverPlayer, fromLevel != level);
+         level.addRespawnedPlayer(serverPlayer);
++        serverPlayer.keepChunkLoaderOnRespawn = false;
+         this.players.add(serverPlayer);
+         this.playersByName.put(serverPlayer.getScoreboardName().toLowerCase(java.util.Locale.ROOT), serverPlayer); // Paper
+         this.playersByUUID.put(serverPlayer.getUUID(), serverPlayer);
