@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 05:40:37 +0200
+Subject: [PATCH] Mark sent slots as synced in CraftInventoryPlayer#setItem
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
+index d8aae267a038446333abfffa6fa95a92644db546..6534f2189dad5c57bd38008b62d726d1cc6f36a5 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryPlayer.java
+@@ -126,7 +126,9 @@ public class CraftInventoryPlayer extends CraftInventory implements org.bukkit.i
+         } else if (index > 35) {
+             index = 8 - (index - 36);
+         }
+-        player.connection.send(new ClientboundContainerSetSlotPacket(player.inventoryMenu.containerId, player.inventoryMenu.incrementStateId(), index, CraftItemStack.asNMSCopy(item)));
++        net.minecraft.world.item.ItemStack sentStack = CraftItemStack.asNMSCopy(item);
++        player.inventoryMenu.setRemoteSlot(index, sentStack);
++        player.connection.send(new ClientboundContainerSetSlotPacket(player.inventoryMenu.containerId, player.inventoryMenu.incrementStateId(), index, sentStack));
+     }
+ 
+     @Override
