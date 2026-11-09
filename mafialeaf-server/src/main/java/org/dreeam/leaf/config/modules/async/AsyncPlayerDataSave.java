@@ -9,7 +9,7 @@ public class AsyncPlayerDataSave extends ConfigModules {
         return EnumConfigCategory.ASYNC.getBaseKeyName() + ".async-playerdata-save";
     }
 
-    public static boolean enabled = false;
+    public static boolean enabled = true;
 
     @Override
     public void onLoaded() {
