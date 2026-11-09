@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 06:37:31 +0200
+Subject: [PATCH] Start debug chunk tracking for async chunk sends
+
+
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+index 1e73383644710d8372ba0f55189c44ee1710d326..9fd5e01988747304bc1bc18d6ea206bef5497f62 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+@@ -469,6 +469,7 @@ public final class RegionizedPlayerChunkLoader {
+                     new io.papermc.paper.event.packet.PlayerChunkLoadEvent(new org.bukkit.craftbukkit.CraftChunk(chunk), this.player.connection.getPlayer().getBukkitEntity()).callEvent();
+                 }
+                 // Paper end - PlayerChunkLoadEvent
++                this.world.debugSynchronizers().startTrackingChunk(this.player, chunk.getPos());
+                 // Leaf start - Multithreaded tracker
+                 if (org.dreeam.leaf.config.modules.async.MultithreadedTracker.enabled) {
+                     ca.spottedleaf.moonrise.common.misc.NearbyPlayers.TrackedChunk trackedChunk = chunk.moonrise$getChunkHolder().holderData.nearbyPlayers;
