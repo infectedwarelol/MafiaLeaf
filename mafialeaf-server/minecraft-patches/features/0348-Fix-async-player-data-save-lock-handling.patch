@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 06:15:44 +0200
+Subject: [PATCH] Fix async player data save lock handling
+
+
+diff --git a/net/minecraft/world/level/storage/PlayerDataStorage.java b/net/minecraft/world/level/storage/PlayerDataStorage.java
+index 4ca87db1f20e8cbe850aeceed0dab07e31a44caf..1a525cb897a7d520535c3f6ac9dc47ca5a1b636b 100644
+--- a/net/minecraft/world/level/storage/PlayerDataStorage.java
++++ b/net/minecraft/world/level/storage/PlayerDataStorage.java
+@@ -23,7 +23,7 @@ public class PlayerDataStorage {
+     private static final Logger LOGGER = LogUtils.getLogger();
+     private final File playerDir;
+     protected final DataFixer fixerUpper;
+-    private final java.util.Map<java.util.UUID, java.util.concurrent.Future<?>> savingLocks = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>(); // Leaf - Async playerdata saving
++    private final java.util.Map<java.util.UUID, java.util.concurrent.Future<?>> savingLocks = new java.util.concurrent.ConcurrentHashMap<>(); // Leaf - Async playerdata saving
+ 
+     public PlayerDataStorage(LevelStorageSource.LevelStorageAccess levelStorageAccess, DataFixer fixerUpper) {
+         this.fixerUpper = fixerUpper;
+@@ -57,31 +57,29 @@ public class PlayerDataStorage {
+             LOGGER.warn("Failed to encode player data for {}", stringId, exception);
+         }
+         lockFor(uniqueId, playerName);
+-        synchronized (PlayerDataStorage.this) {
+-            org.dreeam.leaf.async.AsyncPlayerDataSaving.submit(() -> {
+-                try {
+-                    Path path = this.playerDir.toPath();
+-                    Path path1 = Files.createTempFile(path, stringId + "-", ".dat");
+-                    org.apache.commons.io.FileUtils.writeByteArrayToFile(path1.toFile(), nbtBytes.array, 0, nbtBytes.length, false);
+-                    Path path2 = path.resolve(stringId + ".dat");
+-                    Path path3 = path.resolve(stringId + ".dat_old");
+-                    Util.safeReplaceFile(path2, path1, path3);
+-                } catch (Exception var7) {
+-                    LOGGER.warn("Failed to save player data for {}", playerName, var7);
+-                } finally {
+-                    synchronized (PlayerDataStorage.this) {
+-                        savingLocks.remove(uniqueId);
+-                    }
+-                }
+-            }).ifPresent(future -> savingLocks.put(uniqueId, future));
+-        }
++        java.util.concurrent.FutureTask<Void> saveTask = new java.util.concurrent.FutureTask<>(() -> {
++            try {
++                Path path = this.playerDir.toPath();
++                Path path1 = Files.createTempFile(path, stringId + "-", ".dat");
++                org.apache.commons.io.FileUtils.writeByteArrayToFile(path1.toFile(), nbtBytes.array, 0, nbtBytes.length, false);
++                Path path2 = path.resolve(stringId + ".dat");
++                Path path3 = path.resolve(stringId + ".dat_old");
++                Util.safeReplaceFile(path2, path1, path3);
++            } catch (Exception var7) {
++                LOGGER.warn("Failed to save player data for {}", playerName, var7);
++            }
++        }, null) {
++            @Override
++            protected void done() {
++                PlayerDataStorage.this.savingLocks.remove(uniqueId, this);
++            }
++        };
++        this.savingLocks.put(uniqueId, saveTask);
++        org.dreeam.leaf.async.AsyncPlayerDataSaving.submit(saveTask);
+     }
+ 
+     private void lockFor(java.util.UUID uniqueId, String playerName) {
+-        java.util.concurrent.Future<?> fut;
+-        synchronized (this) {
+-            fut = savingLocks.get(uniqueId);
+-        }
++        java.util.concurrent.Future<?> fut = this.savingLocks.get(uniqueId);
+         if (fut == null) {
+             return;
+         }
+@@ -90,6 +88,8 @@ public class PlayerDataStorage {
+                 fut.get(10_000L, java.util.concurrent.TimeUnit.MILLISECONDS);
+                 break;
+             } catch (InterruptedException ignored) {
++            } catch (java.util.concurrent.CancellationException ignored) {
++                break;
+             } catch (java.util.concurrent.ExecutionException
+                      | java.util.concurrent.TimeoutException exception) {
+                 LOGGER.warn("Failed to save player data for {}", playerName, exception);
+@@ -105,8 +105,6 @@ public class PlayerDataStorage {
+                 LOGGER.warn(threadDump);
+                 fut.cancel(true);
+                 break;
+-            } finally {
+-                savingLocks.remove(uniqueId);
+             }
+         }
+     }
