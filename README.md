@@ -1,5 +1,7 @@
 # MafiaLeaf
 
+<p align="center"><img src="public/image/leaf_logo.png" alt="MafiaLeaf logo" width="200"></p>
+
 **MafiaLeaf** is a Minecraft 1.21.11 server fork of [Leaf](https://github.com/Winds-Studio/Leaf) built only for PigFFA.
 Everything that PigFFA does not use (natural mob spawning, locator bar waypoints, upstream update checks) is removed,
 and the hot paths of a crowded FFA arena (player tracking, respawns, combat, tick statistics) are optimized.
