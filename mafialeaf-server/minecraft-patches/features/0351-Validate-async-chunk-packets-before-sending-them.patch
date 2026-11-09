@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: infectedwarelol <345336994+infectedwarelol@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 06:37:31 +0200
+Subject: [PATCH] Validate async chunk packets before sending them
+
+
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+index 19b91dc3572e877434faa5a4a03a41b4c60085ad..1e73383644710d8372ba0f55189c44ee1710d326 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+@@ -438,22 +438,20 @@ public final class RegionizedPlayerChunkLoader {
+         }
+ 
+         // Leaf start - async chunk sender
+-        private boolean leaf$sendChunk(final int chunkX, final int chunkZ) {
++        private void leaf$sendChunk(final int chunkX, final int chunkZ) {
+             long k = CoordinateUtils.getChunkKey(chunkX, chunkZ);
+-            if (!this.sentChunks.contains(k)) {
+-                final LevelChunk chunk = ((ChunkSystemLevel) this.world).moonrise$getFullChunkIfLoaded(chunkX, chunkZ);
+-                if (this.world.chunkPacketBlockController.shouldModify(this.player, chunk)) {
+-                    this.sendChunk(chunkX, chunkZ);
+-                    return true;
+-                }
+-                if (this.asyncSender.add(k)) {
+-                    this.asyncSender.submit(net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket.prepareAsync(chunk, this.world.getLightEngine()));
+-                    return true;
+-                } else {
+-                    return false;
+-                }
++            if (this.sentChunks.contains(k)) {
++                throw new IllegalStateException();
+             }
+-            throw new IllegalStateException();
++            if (this.asyncSender.contains(k)) {
++                return;
++            }
++            final LevelChunk chunk = ((ChunkSystemLevel) this.world).moonrise$getFullChunkIfLoaded(chunkX, chunkZ);
++            if (this.world.chunkPacketBlockController.shouldModify(this.player, chunk)) {
++                this.sendChunk(chunkX, chunkZ);
++                return;
++            }
++            this.asyncSender.submit(k, chunk.moonrise$getChunkHolder().vanillaChunkHolder.clientVisibleChanges, net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket.prepareAsync(chunk, this.world.getLightEngine()));
+         }
+         private void leaf$sendChunkRaw(final net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket chunkPacket) {
+             final int chunkX = chunkPacket.getX();
+@@ -899,17 +897,14 @@ public final class RegionizedPlayerChunkLoader {
+                         return;
+                     } // else: good to dequeue and send, fall through
+                 }
+-                //this.sendQueue.dequeueLong(); // Leaf - async chunk sender
+-
+                 // Leaf start - async chunk sender
++                if (this.asyncSender != null && !this.asyncSender.canSubmit()) {
++                    break;
++                }
++                this.sendQueue.dequeueLong();
+                 if (this.asyncSender != null) {
+-                    if (this.leaf$sendChunk(pendingSendX, pendingSendZ)) {
+-                        this.sendQueue.dequeueLong();
+-                    } else {
+-                        break;
+-                    }
++                    this.leaf$sendChunk(pendingSendX, pendingSendZ);
+                 } else {
+-                    this.sendQueue.dequeueLong();
+                     this.sendChunk(pendingSendX, pendingSendZ);
+                 }
+                 // Leaf end - async chunk sender
+@@ -921,11 +916,24 @@ public final class RegionizedPlayerChunkLoader {
+             }
+             // Leaf start - async chunk sender
+             if (this.asyncSender != null) {
+-                net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket packet;
+-                while ((packet = this.asyncSender.recv()) != null) {
+-                    if (this.asyncSender.remove(CoordinateUtils.getChunkKey(packet.getX(), packet.getZ()))) {
++                org.dreeam.leaf.async.chunk.AsyncChunkSender.Result result;
++                while ((result = this.asyncSender.recv()) != null) {
++                    if (!this.asyncSender.complete(result)) {
++                        continue;
++                    }
++                    final int chunkX = CoordinateUtils.getChunkX(result.chunkKey());
++                    final int chunkZ = CoordinateUtils.getChunkZ(result.chunkKey());
++                    final net.minecraft.server.level.ChunkHolder chunkHolder = ((ChunkSystemServerLevel)this.world).moonrise$getChunkTaskScheduler().chunkHolderManager
++                        .getChunkHolder(chunkX, chunkZ).vanillaChunkHolder;
++                    final net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket packet = result.packet();
++                    if (packet == null || chunkHolder.clientVisibleChanges != result.changeCount()) {
++                        this.sendChunk(chunkX, chunkZ);
++                    } else {
+                         this.leaf$sendChunkRaw(packet);
+                     }
++                    if (this.removed) {
++                        return;
++                    }
+                 }
+             }
+             // Leaf end - async chunk sender
+diff --git a/net/minecraft/server/level/ChunkHolder.java b/net/minecraft/server/level/ChunkHolder.java
+index 22123d8b0fd8741c6df4efaec56f3c694e0529a3..3e7029ff7e95192e5115ba610f428e64a5054a0b 100644
+--- a/net/minecraft/server/level/ChunkHolder.java
++++ b/net/minecraft/server/level/ChunkHolder.java
+@@ -48,6 +48,7 @@ public class ChunkHolder extends GenerationChunkHolder implements ca.spottedleaf
+ 
+     private static final ServerPlayer[] EMPTY_PLAYER_ARRAY = new ServerPlayer[0];
+     private final ca.spottedleaf.moonrise.common.list.ReferenceList<ServerPlayer> playersSentChunkTo = new ca.spottedleaf.moonrise.common.list.ReferenceList<>(EMPTY_PLAYER_ARRAY);
++    public int clientVisibleChanges;
+ 
+     private ChunkMap getChunkMap() {
+         return (ChunkMap)this.playerProvider;
+@@ -221,6 +222,7 @@ public class ChunkHolder extends GenerationChunkHolder implements ca.spottedleaf
+     }
+ 
+     public boolean blockChanged(BlockPos pos) {
++        this.clientVisibleChanges++;
+         LevelChunk tickingChunk = this.playersSentChunkTo.size() == 0 ? null : this.getChunkToSend(); // Paper - rewrite chunk system
+         if (tickingChunk == null) {
+             return false;
+@@ -241,6 +243,7 @@ public class ChunkHolder extends GenerationChunkHolder implements ca.spottedleaf
+     }
+ 
+     public boolean sectionLightChanged(LightLayer lightLayer, int y) {
++        this.clientVisibleChanges++;
+         ChunkAccess chunkIfPresent = this.getChunkIfPresent(ChunkStatus.INITIALIZE_LIGHT);
+         if (chunkIfPresent == null) {
+             return false;
+diff --git a/net/minecraft/server/level/ChunkMap.java b/net/minecraft/server/level/ChunkMap.java
+index 69b4f1cc41bc062d6cd9bf32b4518ae4840d06f2..5e49e14be1d58b7b613023eb715ddcfe37b9f748 100644
+--- a/net/minecraft/server/level/ChunkMap.java
++++ b/net/minecraft/server/level/ChunkMap.java
+@@ -1166,6 +1166,10 @@ public class ChunkMap extends SimpleRegionStorage implements ChunkHolder.PlayerP
+ 
+         for (ChunkAccess chunkAccess : chunks) {
+             ChunkPos pos = chunkAccess.getPos();
++            ChunkHolder chunkHolder = this.getVisibleChunkIfPresent(pos.toLong());
++            if (chunkHolder != null) {
++                chunkHolder.clientVisibleChanges++;
++            }
+             LevelChunk levelChunk1;
+             if (chunkAccess instanceof LevelChunk levelChunk) {
+                 levelChunk1 = levelChunk;
